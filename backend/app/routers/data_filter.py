@@ -65,6 +65,17 @@ def export_entries(
         headers={"Content-Disposition": 'attachment; filename="data_filter.csv"'})
 
 
+@router.get("/hierarchy_output")
+def hierarchy_output(
+    父级编号: str = Query(..., description="层级聚合明细表中的父级编号"),
+) -> dict:
+    """跨模块联动（V018）：读取层级聚合明细表中的筛选规则版本，只输出满足当前父级条件的记录。"""
+    result = service.hierarchy_output(父级编号.strip())
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"父级 {父级编号} 在层级聚合明细表中没有已确认记录")
+    return result
+
+
 @router.get("/{entry_id}", response_model=dict)
 def get_entry(entry_id: int) -> dict:
     """读取单条筛选规则明细；不存在时给出可读的错误说明。"""

@@ -72,6 +72,35 @@
       </form>
     </div>
 
+    <section class="hierarchy-output" data-testid="hierarchy-output">
+      <h3>层级联动输出（V018）</h3>
+      <p class="page-desc">读取层级聚合明细表中的筛选规则版本，只输出满足当前父级条件的记录。</p>
+      <form class="filter-bar" @submit.prevent="queryHierarchyOutput">
+        <label class="filter-item">
+          <span>父级编号</span>
+          <input v-model="parentCode" data-testid="hierarchy-parent" placeholder="如 DRIL-0001" />
+        </label>
+        <button class="btn" data-testid="hierarchy-query" type="submit">查询联动输出</button>
+      </form>
+      <p v-if="hierarchyError" class="error-text">{{ hierarchyError }}</p>
+      <template v-if="hierarchyResult">
+        <p class="hierarchy-meta">
+          父级 {{ hierarchyResult.父级编号 }} ｜ 明细规则版本：{{ hierarchyResult.筛选规则版本.join('、') || '—' }} ｜
+          命中生效版本：{{ hierarchyResult.生效规则版本.join('、') || '—' }} ｜ 输出 {{ hierarchyResult.total }} 条
+        </p>
+        <table class="data-table">
+          <thead><tr><th>批次号</th><th>父级编号</th><th>子级编号</th><th>层级路径</th><th>指标值</th><th>筛选规则版本</th></tr></thead>
+          <tbody>
+            <tr v-for="row in hierarchyResult.items" :key="row.id" data-testid="hierarchy-row">
+              <td>{{ row.批次号 }}</td><td>{{ row.父级编号 }}</td><td>{{ row.子级编号 }}</td>
+              <td>{{ row.层级路径 }}</td><td>{{ row.指标值 }}</td><td>{{ row.筛选规则版本 }}</td>
+            </tr>
+            <tr v-if="!hierarchyResult.items.length"><td colspan="6" class="empty-state">当前父级条件下没有满足生效规则版本的记录</td></tr>
+          </tbody>
+        </table>
+      </template>
+    </section>
+
     <footer class="page-foot">
       <span>共 {{ total }} 条数据筛选记录</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
@@ -184,5 +213,35 @@ async function reload() {
   }
 }
 
+// ---------------------------------------------------------- V018 层级联动
+const parentCode = ref('')
+const hierarchyResult = ref<any>(null)
+const hierarchyError = ref('')
+
+async function queryHierarchyOutput() {
+  hierarchyError.value = ''
+  hierarchyResult.value = null
+  if (!parentCode.value.trim()) {
+    hierarchyError.value = '请先输入父级编号'
+    return
+  }
+  try {
+    const query = new URLSearchParams({ 父级编号: parentCode.value.trim() }).toString()
+    const response = await request(`${ENDPOINT}/hierarchy_output?${query}`)
+    const payload = await response.json()
+    if (!response.ok) {
+      throw new Error(payload.detail || '联动输出查询失败')
+    }
+    hierarchyResult.value = payload
+  } catch (error) {
+    hierarchyError.value = error instanceof Error ? error.message : '联动输出查询失败'
+  }
+}
+
 onMounted(reload)
 </script>
+<style scoped>
+.hierarchy-output { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 12px; }
+.hierarchy-output h3 { margin: 0 0 4px; font-size: 15px; }
+.hierarchy-meta { font-size: 12px; color: var(--muted); margin: 8px 0; }
+</style>

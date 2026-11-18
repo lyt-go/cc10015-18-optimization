@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.services.drill_hierarchy import DETAIL_STATUS_CONFIRMED, DETAIL_TABLE, SCHEMA_VERSION
 from app.store import store
 
 MODULE = "data_filter"
@@ -36,6 +37,34 @@ class DataFilterService:
 
     def get_entry(self, entry_id: int) -> dict[str, Any] | None:
         return store.find(MODULE, entry_id)
+
+    def hierarchy_output(self, parent_code: str) -> dict[str, Any] | None:
+        """跨模块联动（V018）：读取层级聚合明细表中的筛选规则版本，只输出满足当前父级条件的记录。"""
+        details = [
+            row for row in store.rows(DETAIL_TABLE)
+            if row.get("父级编号") == parent_code and row.get("状态") == DETAIL_STATUS_CONFIRMED
+        ]
+        if not details:
+            return None
+        versions = sorted({str(row.get("筛选规则版本", "")) for row in details if row.get("筛选规则版本")})
+        rules = [
+            dict(row) for row in store.rows(MODULE)
+            if str(row.get("规则版本", "")) in versions
+        ]
+        active_versions = {str(row.get("规则版本", "")) for row in rules if row.get("status") == "已生效"}
+        records = [
+            dict(row) for row in details
+            if str(row.get("筛选规则版本", "")) in active_versions
+        ]
+        return {
+            "版本": SCHEMA_VERSION,
+            "父级编号": parent_code,
+            "筛选规则版本": versions,
+            "生效规则版本": sorted(active_versions),
+            "命中规则": rules,
+            "items": records,
+            "total": len(records),
+        }
 
     def create_entry(self, values: dict[str, Any]) -> tuple[dict[str, Any] | None, list[str]]:
         missing = [field for field in REQUIRED_FIELDS if not str(values.get(field) or "").strip()]
